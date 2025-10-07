@@ -1,0 +1,84 @@
+
+#######################################################################
+# Pipeline for Extracting Read Counts from SAM/BAM and Calculating TPM (if necessary)
+#
+# Steps:
+# 1. Convert SAM → BAM, sort, and index using samtools
+# 2. Extract raw read counts per reference sequence with samtools idxstats
+# 3. Calculate TPM values from read counts and genome sizes
+#
+# Requirements:
+# - samtools
+#
+# Author: Erfan Khamespanah
+# Date: 10/September/2025
+#######################################################################
+
+
+
+############ Step 1,2: SAM -> BAM Conversion, Sorting, Indexing ############
+
+OUT_DIR=/output/directory
+SAMFILE=/path/to/sam_file
+FILENAME=$(basename $SAMFILE)
+
+SORTED_FILE=$OUT_DIR/"sorted_${FILENAME:8:-27}_b1.bam"
+
+samtools view --threads 4 -bS $SAMFILE | samtools sort --threads 4 -o $SORTED_FILE
+samtools index --threads 4 $SORTED_FILE
+samtools idxstats $SORTED_FILE > $OUT_DIR/"counts_${FILENAME:8:-27}.tsv"
+
+
+
+############ Step 3: TPM Calculation (This step is optional) ############
+
+# Usage: ./calc_tpm_from_bowtie.sh input.tsv raw_count_column genome_size_column output.tsv
+# Example: ./calc_tpm_from_bowtie.sh sample_counts.tsv 3 2 sample_counts_tpm.tsv
+
+INPUT_FILE="$1"
+RAW_COUNT_COL="$2"
+GENOME_SIZE_COL="$3"
+OUTPUT_FILE="$4"
+
+
+if [ $# -ne 4 ]; then
+  echo "Usage: $0 <input_file> <raw_count_column> <genome_size_column> <output_file>"
+  exit 1
+fi
+
+
+
+# First pass: calculate sum of RPKs
+RPK_SUM=$(awk -v RC="$RAW_COUNT_COL" -v GS="$GENOME_SIZE_COL" '
+BEGIN { FS = OFS = "\t" }
+{
+  RAW_COUNT = $RC + 0
+  GENOME_SIZE = $GS + 0
+  if (RAW_COUNT > 0 && GENOME_SIZE > 0) {
+    RPK = RAW_COUNT / (GENOME_SIZE / 1000)
+    	sum += RPK
+  }
+} END { print sum }' "$INPUT_FILE")
+
+
+
+
+# Second pass: calculate TPM and append it as a new column
+awk -v RC="$RAW_COUNT_COL" -v GS="$GENOME_SIZE_COL" -v SUM_RPK="$RPK_SUM" '
+BEGIN { FS = OFS = "\t" }
+{
+  RAW_COUNT = $RC + 0
+  GENOME_SIZE = $GS + 0
+  if (RAW_COUNT > 0 && GENOME_SIZE > 0 && SUM_RPK > 0) {
+    RPK = RAW_COUNT / (GENOME_SIZE / 1000)
+    TPM = (RPK / SUM_RPK) * 1e6
+  } else {
+    TPM = 0
+  }
+  print $0, TPM  # Add TPM as new last column
+}' "$INPUT_FILE" > "$OUTPUT_FILE"
+
+
+
+
+echo "TPM calculation done. Output written to $OUTPUT_FILE"

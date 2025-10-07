@@ -1,0 +1,59 @@
+
+#######################################################################
+# Pipeline for clustering viral contigs and mapping reads
+#
+# Steps:
+# 1. Build a non-redundant viral contig library from high-quality viral contigs
+#    using MMseqs2 clustering
+# 2. Map non-human reads back to the non-redundant viral contig library
+#    using Bowtie2
+#
+# Requirements:
+# - mmseqs
+# - bowtie2
+#
+# Author: Erfan Khamespanah
+# Date: 10/September/2025
+#######################################################################
+
+
+
+############ Non-redundant High Quality Viral Contig Library ############
+
+IN_FILE=/path/to/high_quality_viral_contigs.fasta
+OUT_DIR=/output/directory
+TMP_DIR=/temporary/directory
+
+mmseqs \
+  easy-linclust \
+  $IN_FILE \
+  $OUT_DIR \
+  $TMP_DIR \
+  --min-seq-id 0.95 \
+  -c 0.5 \
+  --cluster-mode 2 \
+  --alignment-mode 3 \
+  --cov-mode 3 \
+  --seq-id-mode 1 \
+  --threads 10
+
+
+
+############ Mapping Non-human Reads to Viral Contig Library ############
+
+OUT_DIR=/output/directory
+BOWTIE_INDEX=/path/to/non-redundant_high_quality_viral_contigs_index/hq_vc_95
+
+
+PAIR_1=/path/to/non-human_read_R1.fastq.gz
+PAIR_2=/path/to/non-human_read_R2.fastq.gz
+FILENAME=$(basename $PAIR_1)
+
+
+bowtie2 \
+  -x $BOWTIE_INDEX \
+  --sensitive \
+  -1 $PAIR_1 \
+  -2 $PAIR_2 \
+  -S $OUT_DIR/"mapping_${FILENAME:10:-11}.sam" \
+  --threads 12

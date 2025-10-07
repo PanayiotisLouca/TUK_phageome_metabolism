@@ -1,0 +1,63 @@
+
+#######################################################################
+# Pipeline for viral genome assembly and detection
+#
+# Steps:
+# 1. Assembly of non-human reads with MEGAHIT
+# 2. Filtering contigs >10 kb using seqkit
+# 3. Viral contig detection with CheckV 
+#
+# Requirements:
+# - megahit
+# - seqkit
+# - checkv
+#
+# Author: Erfan Khamespanah
+# Date: 10/September/2025
+#######################################################################
+
+
+
+############ Assembly of Non-human Reads ############
+
+OUT_FILE=/path/to/sampleX_contigs
+PAIR_1=/path/to/non-human_read_R1.fastq.gz
+PAIR_2=/path/to/non-human_read_R2.fastq.gz
+
+FILENAME=$(basename $PAIR_1)
+
+megahit \
+  --memory 20000000000 \
+  --num-cpu-threads 12 \
+  -1 $PAIR_1 \
+  -2 $PAIR_2 \
+  -o $OUT_DIR/${FILENAME:10:-11}
+
+
+
+############ Filtering >10kb Contigs ############
+
+IN_DIR=/path/to/sample*_contigs
+
+for FILE in $IN_DIR/final.contigs.fa; do
+    seqkit seq --threads 16 -m 10000 $FILE >> $IN_DIR/longer_10kb_contigs.fasta
+done
+
+
+
+############ Detecting Viral Contigs ############
+
+CONTIG_FILE=/path/to/longer_10kb_contigs.fasta
+OUT_DIR=/path/to/output/directory
+CHECKV_DB=/path/to/checkV_database/checkv-db-v1.5
+FILENAME=$(basename "$CONTIG_FILE")
+
+checkv \
+end_to_end \
+$CONTIG_FILE \
+$OUT_DIR/${FILENAME::-6} \
+-d $CHECKV_DB \
+-t 16
+
+# Note: Based on "quality_summary.tsv", high-quality and complete viral genomes 
+# are selected for further analysis.

@@ -1,0 +1,97 @@
+#######################################################################
+# Pipeline for Taxonomic, host, replication cycle, and Auxiliary Metabolic 
+# Genes prediction of viral contigs
+#
+# Steps:
+# 1. Predicting the taxonomy of viral contigs using geNomad
+# 2. Predicting the host of the viral contigs using iPHoP
+# 3. Predicting the replication cycle of the viral contigs using BACPHLIP
+# 4. Predicting the Auxiliary Metabolic Genes (AMGs) in the viral contigs using DRAM-V
+#
+# Requirements:
+# - geNomad
+# - iPHoP
+# - BACPHLIP
+# - VirSorter2
+# - DRAM-V
+#
+# Author: Erfan Khamespanah
+# Date: 10/September/2025
+#######################################################################
+
+
+
+############ Taxanomy Prediction with geNomad ############
+
+OUT_DIR=/path/to/output/directory
+IN_FILE=/path/to/high_quality_viral_contigs.fasta
+GENOMAD_DB=/path/to/geNomad_database
+FILENAME=$(basename $IN_FILE)
+
+genomad end-to-end \
+--threads 8 \
+$IN_FILE \
+$OUT_DIR/${FILENAME::-6} \
+$GENOMAD_DB
+
+
+
+############ Host Prediction with iPHoP ############
+
+OUT_DIR=/path/to/output/directory
+IN_FILE=/path/to/high_quality_viral_contigs.fasta
+DATABASE=/path/to/iPHoP_database
+FILENAME=$(basename $IN_FILE)
+
+iphop predict \
+--fa_file $IN_FILE \
+--out_dir $OUT_DIR/${FILENAME::-6} \
+--db_dir $DATABASE \
+--num_threads 8
+
+
+
+############ Replication Cycle Prediction with BACPHLIP ############
+
+IN_FILE=/path/to/high_quality_viral_contigs.fasta
+
+bacphlip \
+--input $IN_FILE \
+--force_overwrite \
+--multi_fasta
+
+
+############ Auxiliary Score Assignment With VirSorter2  ############
+
+DATABASE_PATH=/path/to/VirSorter_database/
+IN_FILE=/path/to/high_quality_viral_contigs.fasta
+OUT_DIR=/path/to/output/directory
+
+virsorter run \
+--seqfile $IN_FILE \
+--working-dir $OUT_DIR \
+--db-dir $DATABASE_PATH \
+--prep-for-dramv \
+--rm-tmpdir \
+--jobs 8
+
+
+############ AMG prediction with DRAM-V ############
+
+IN_VIR_CONTIG=/path/to/VirSorter_contig_for_DRAM-V.fa
+IN_VIR_SCORES=/path/to/VirSorter_score_table_for_DRAM-V.tab
+OUT_DIR=/path/to/output/directory
+
+DRAM-v.py \
+annotate \
+-i $IN_VIR_CONTIG \
+--split_contigs \
+--skip_trnascan \
+--virsorter_affi_contigs $IN_VIR_SCORES \
+-o $OUT_DIR \
+--threads 8
+
+DRAM-v.py \
+distill \
+--input_file $OUT_DIROUT_DIR/annotations.tsv \
+--output_dir $OUT_DIR

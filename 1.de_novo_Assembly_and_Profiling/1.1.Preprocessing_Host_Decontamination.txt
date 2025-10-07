@@ -1,0 +1,75 @@
+
+#######################################################################
+# Pipeline for preprocessing paired-end sequencing reads
+#
+# Steps:
+# 1. Quality control and trimming with fastp
+# 2. Removal of host (human) contamination with Bowtie2
+#
+# Requirements:
+# - fastp
+# - bowtie2
+# - Human genome Bowtie2 index (e.g., GRCh38_noalt_as)
+#
+# Author: Erfan Khamespanah
+# Date: 10/September/2025
+#######################################################################
+
+
+############ Quality control and trimming with fastp ############
+
+# Output directory
+OUT_DIR=/path/to/output/directory/
+
+# Input paired-end reads
+PAIR_1=/path/to/pair_R1.fastq.gz
+PAIR_2=/path/to/pair_R2.fastq.gz
+
+# Extract filenames
+FILENAME_1=$(basename $PAIR_1)
+FILENAME_2=$(basename $PAIR_2)
+
+# Run fastp for quality control and trimming
+fastp \
+  --in1 $PAIR_1 \
+  --in2 $PAIR_2 \
+  --out $OUT_DIR/"trimmed_${FILENAME_1}" \
+  --out2 $OUT_DIR/"trimmed_${FILENAME_2}" \
+  --html $OUT_DIR/fastp_${FILENAME_1}.html \
+  --json $OUT_DIR/fastp_${FILENAME_1}.json \
+  --compression 4 \
+  --n_base_limit 10 \
+  --length_required 60 \
+  --cut_front \
+  --cut_tail \
+  --cut_window_size 4 \
+  --cut_mean_quality 20 \
+  --correction \
+  --trim_poly_g \
+  --trim_poly_x                           
+
+
+
+############ Removal of human contamination with Bowtie2 ############
+
+# Define output directory and reference index
+OUT_DIR=/output/directory
+BOWTIE_INDEX=/path/to/human_genome_index/GRCh38_noalt_as
+
+# Define input paired-end read files
+PAIR_1=/path/to/trimmed_read_R1.fastq.gz
+PAIR_2=/path/to/trimmed_read_R2.fastq.gz
+
+# Extract the base name of the first read file (used for naming outputs)
+FILENAME=$(basename $PAIR_1)
+
+# Run Bowtie2 to align reads to the human genome
+bowtie2 \
+  -x $BOWTIE_INDEX \
+  --end-to-end \
+  --very-fast \
+  -1 $PAIR_1 \
+  -2 $PAIR_2 \
+  --un-conc-gz $OUT_DIR/"non-human_${FILENAME:8:-12}.fastq.gz" \
+  -S /dev/null \
+  --threads 8                                  
